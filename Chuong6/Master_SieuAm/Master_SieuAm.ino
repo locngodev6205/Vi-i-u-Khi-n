@@ -1,46 +1,45 @@
-// Connect the HC-05 and communicate using the serial monitor
-// When first powered on. you need to manually enter AT mode
-// The default baud rate for AT mode is 38400
 #include <SoftwareSerial.h>
-int count0 = 0;
-int count1 = 0;
-SoftwareSerial BTSerial(10, 11); // RX | TX
-// Connect the HC-05 TX to Arduino pin 10
-// Connect the HC-05 RX to Arduino pin 11
 
-const int trigPin = 7;
-const int echoPin = 6;
+const int TRIG_PIN = 7;     
+const int ECHO_PIN = 6;
+SoftwareSerial BTSerial(10, 11); 
+
+char lastSentCommand = ' ';
 
 void setup() {
-  pinMode(trigPin, OUTPUT);
-  pinMode(echoPin, INPUT);  
   Serial.begin(9600);
-  Serial.println("Arduino is ready:");
-  Serial.println("Remember to select Both BL & CR in the serial monitor");
-  BTSerial.begin(38400); // HC-05 default speed in AT command
+  BTSerial.begin(38400); 
+  
+  pinMode(TRIG_PIN, OUTPUT); 
+  pinMode(ECHO_PIN, INPUT);  
 }
 
 void loop() {
-  int duration; // biến đo thời gian
-  int distance;           // biến lưu khoảng cách
-
-  digitalWrite(trigPin, LOW); // tắt chân trig
+  digitalWrite(TRIG_PIN, LOW);
   delayMicroseconds(2);
-  digitalWrite(trigPin, HIGH); // phát xung từ chân trig
-  delayMicroseconds(10); // xung có độ dài 10 microSeconds
-  digitalWrite(trigPin, LOW); // tắt chân trig
-  duration = pulseIn(echoPin, HIGH);
-  distance = duration * 0.034 / 2.0;
+  digitalWrite(TRIG_PIN, HIGH);
+  delayMicroseconds(10);
+  digitalWrite(TRIG_PIN, LOW);
 
+  long duration = pulseIn(ECHO_PIN, HIGH, 30000);
+  int distance = duration * 0.034 / 2;
+
+  Serial.print("Khoang cach: ");
   Serial.print(distance);
-  Serial.println("cm"); 
-  if (distance < 20) {    
-    Serial.println("YES");
-    BTSerial.write("1");
-  }
-  else{
-    Serial.println("NO");
-    BTSerial.write("0");
+  Serial.println(" cm");
+
+  char commandToSend = lastSentCommand;
+  if ( distance <= 20) {
+    commandToSend = '1';
   } 
-  delay(2000);
+  else {
+    commandToSend = '0';
+  }
+
+  if (commandToSend != lastSentCommand) {
+    BTSerial.write(commandToSend); 
+    lastSentCommand = commandToSend;
+  }
+
+  delay(200);
 }

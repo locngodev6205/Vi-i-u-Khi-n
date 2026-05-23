@@ -44,15 +44,22 @@ void loop() {
     if (currentMode == '1') { 
         // Nếu trạng thái đang là 'F' (Có Gas) -> Cứ xoay 90 độ thuận mãi mãi
         Serial.println("Xoay thuan 90 do...");
-        myStepper.step(step90);
         myStepper.setSpeed(10);
-    } 
+        myStepper.step(step90);
+        
+        delay(200);
+    }
     else if (currentMode == '0') {
         // Nếu trạng thái đang là 'R' (Hết Gas) -> Cứ xoay 180 độ ngược mãi mãi
         Serial.println("Xoay nguoc 45 do...");
-        myStepper.step(-step60);
         myStepper.setSpeed(15);
+        myStepper.step(-step60);
+        
+        delay(200);
     }
+    else if (currentMode == 'S'){
+    
+  }
     // Nếu currentMode == 'S' thì nó không lọt vào 2 if trên -> Motor tự động đứng im chờ lệnh.
-    delay(200);
+    
 }

@@ -1,47 +1,47 @@
-// Connect the HC-05 and communicate using the serial monitor
-// When first powered on. you need to manually enter AT mode
-// The default baud rate for AT mode is 38400
 #include <SoftwareSerial.h>
-#include <Servo.h> 
-#define Servo_PWM 6 
-SoftwareSerial BTSerial(10, 11); // RX | TX
-// Connect the HC-05 TX to Arduino pin 10
-// Connect the HC-05 RX to Arduino pin 11
-Servo MG995_Servo; 
+#include <Servo.h>
+
+Servo myServo;
+const int SERVO_PIN = 6;
+SoftwareSerial BTSerial(10, 11); 
+
+char currentMode = 'S';
 
 void setup() {
   Serial.begin(9600);
-  Serial.println("Arduino is ready:");
-  Serial.println("Remember to select Both BL & CR in the serial monitor");
-  BTSerial.begin(38400); // HC-05 default speed in AT command
-
-  MG995_Servo.attach(Servo_PWM);
-  MG995_Servo.write(0);
+  BTSerial.begin(38400); 
+  
+  myServo.attach(SERVO_PIN);
+  myServo.write(0);
 }
 
 void loop() {
-  while (BTSerial.available())
-  {
-    char c = BTSerial.read();
-    Serial.println(c);
-    if (c== '1')
-    {
-      Serial.println("decode");
-      MG995_Servo.write(90);
-      delay(1000);
-      MG995_Servo.write(0);
-      delay(1000);
+  if (BTSerial.available()) {
+    char newChar = BTSerial.read(); 
+    
+    if (newChar == '1' || newChar == '0' || newChar == 'S') {
+      currentMode = newChar; 
+      Serial.print("CMD : ");
+      Serial.println(currentMode);
     }
     else {
-      Serial.println("decode2");
-      MG995_Servo.write(45);
-      delay(1000);
-      MG995_Servo.write(0);
-      delay(1000);
+      Serial.print("Canh bao: Ky tu khong hop le -> ");  Serial.println(newChar);
     }
   }
-  if (Serial.available())
-  {
-    BTSerial.write(Serial.read());
+
+  if (currentMode == '1') {
+    myServo.write(60);
+    delay(500);
+    myServo.write(0);
+    delay(500);
+  } 
+  else if (currentMode == '0') {
+    myServo.write(120);
+    delay(500);
+    myServo.write(0);
+    delay(500);
+  }
+  else if (currentMode == 'S') {
+    myServo.write(0);
   }
 }

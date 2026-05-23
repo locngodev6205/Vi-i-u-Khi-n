@@ -1,36 +1,51 @@
 #include <SoftwareSerial.h>
-SoftwareSerial BTSerial(10, 11); // RX | TX
-//START JOYSTICK VARIABLE
-int JoyStickX = 1; //A1
-int JoyStickY = 2; // A2
-int JoyStickZ = 3;
 
-bool joystick(int thresholdX = 550, int thresholdY = 550, int thresholdZ= LOW) {
-  int x, y, z;
-  x = analogRead(JoyStickX);
-  y = analogRead(JoyStickY);
-  z = digitalRead(JoyStickZ);
-  Serial.println("JOYSTICK " + String(x) + ", " + String(y) + ", " + z );
-  int valSent = 0;
-  if (x >= thresholdX  || y>=thresholdY || z == LOW) {
-    return true;
-  } else {
-    return false;
-  }
-}
-void setup() { 
+const int JOYSTICK_X_PIN = A0;
+const int JOYSTICK_Y_PIN = A1;
+const int SW = 2;
+SoftwareSerial BTSerial(10, 11);
+
+char lastSentCommand = ' ';
+
+void setup()
+{
   Serial.begin(9600);
-  BTSerial.begin(38400); // HC-05 default speed in AT command
-  pinMode(JoyStickZ, INPUT_PULLUP);
-} 
-void loop(){
-  Serial.print("Sent ");
-  if(joystick()){
-    Serial.println("YES");
-    BTSerial.write("1");
-  } else {
-    Serial.println("NO");
-    BTSerial.write("0");
+  BTSerial.begin(38400);
+}
+
+void loop()
+{
+  int xValue = analogRead(JOYSTICK_X_PIN);
+  int yValue = analogRead(JOYSTICK_Y_PIN);
+  int swValue = digitalRead(SW);
+
+  Serial.print("X: ");
+  Serial.print(xValue);
+  Serial.print(" | Y: ");
+  Serial.println(yValue);
+  Serial.print(" | SW: ");
+  Serial.println(swValue);
+
+
+  char commandToSend;
+  if (xValue > 700 || yValue > 700)
+  {
+    commandToSend = '1';
   }
-  delay(2000);
+  else if (xValue < 300 || yValue < 300)
+  {
+    commandToSend = '0';
+  }
+  else
+  {
+    commandToSend = 'S';
+  }
+
+  if (commandToSend != lastSentCommand)
+  {
+    BTSerial.write(commandToSend);
+    lastSentCommand = commandToSend;
+  }
+
+  delay(200);
 }

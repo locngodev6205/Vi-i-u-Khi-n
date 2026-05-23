@@ -38,7 +38,7 @@ void loop() {
     Serial.print("Temperature: ");
     Serial.println(temp);
 
-    if (humi > 90 && temp > 29) {  // Vượt ngưỡng → gửi CMD_1
+    if (humi > 85 && temp > 29) {  // Vượt ngưỡng → gửi CMD_1
         IrSender.sendRC5(MY_ADDRESS, CMD_1, 0, true);
         Serial.println("-> Vuot nguong nhiet do & do am!");
     } else {                        // Bình thường → gửi CMD_2

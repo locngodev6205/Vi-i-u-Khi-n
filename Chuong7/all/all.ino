@@ -4,24 +4,24 @@
 #include <DHT.h>
 #include <Stepper.h>
 
-const char* ssid     = "Tầng 2- nha tro Bach Khoa";
-const char* password = "12345678910";
+const char* ssid     = "nvl";
+const char* password = "12341234";
 
 WebServer server(80);
 Servo servo;
 
 // ── Bật/tắt động cơ ───────────────────────────────────────────────────────
-const bool USE_SERVO   = false;
-const bool USE_STEPPER = false;
+const bool USE_SERVO       = false;
+const bool USE_STEPPER     = false;
 const bool USE_MOTOR_L298N = true;
 
 // ── Bật/tắt cảm biến ──────────────────────────────────────────────────────
 const bool USE_DHT        = false;
 const bool USE_LDR        = false;
 const bool USE_GAS        = false;
-const bool USE_LINE       = false;
-const bool USE_JOYSTICK   = true;
-const bool USE_ULTRASONIC = true; // sieu am
+const bool USE_LINE       = true;
+const bool USE_JOYSTICK   = false;
+const bool USE_ULTRASONIC = false;
 
 // ── Chân GPIO ──────────────────────────────────────────────────────────────
 const int SERVO_PIN = 13;
@@ -35,6 +35,7 @@ Stepper myStepper(STEPS_PER_REV, STEP_IN1, STEP_IN2, STEP_IN3, STEP_IN4);
 const int MOTOR_ENA = 18;
 const int MOTOR_IN1 = 16;
 const int MOTOR_IN2 = 17;
+int motorSpeed = 200; // 0–255
 
 const int DHT_PIN  = 4;
 const int LDR_PIN  = 5;
@@ -67,18 +68,30 @@ void servoTask(void* param) {
 
 // ── Stepper state ──────────────────────────────────────────────────────────
 volatile bool stepperRunning = false;
-volatile int  stepperDir     = 1;    // 1 = thuận, -1 = ngược
-volatile int  stepperSpeed   = 10;   // RPM
+volatile int  stepperDir     = 1;
+volatile int  stepperSpeed   = 10;
+volatile int  stepperAngle   = 90;
 TaskHandle_t  stepperTaskHandle = NULL;
+
+int angleToSteps(int angle) {
+  return (int)((float)angle / 360.0f * (float)STEPS_PER_REV);
+}
 
 void stepperTask(void* param) {
   while (true) {
     if (stepperRunning) {
-      myStepper.setSpeed(stepperSpeed);
-      // Quay từng bước nhỏ để vẫn check được stepperRunning
-      myStepper.step(stepperDir * 10);
-      // Nhường CPU để tránh watchdog reset (Stepper.step() là hàm blocking/busy-wait)
-      vTaskDelay(pdMS_TO_TICKS(1));
+      int steps = angleToSteps(stepperAngle);
+      if (steps > 0) {
+        myStepper.setSpeed(stepperSpeed);
+        for (int i = 0; i < steps; i++) {
+          if (!stepperRunning) break;
+          myStepper.step(stepperDir * 1);
+        }
+      }
+      for (int i = 0; i < 20; i++) {
+        if (!stepperRunning) break;
+        vTaskDelay(pdMS_TO_TICKS(10));
+      }
     } else {
       vTaskDelay(pdMS_TO_TICKS(20));
     }
@@ -97,15 +110,15 @@ float readUltrasonic() {
 // ── HTML ───────────────────────────────────────────────────────────────────
 String getHTML() {
   String flags = "{";
-  flags += "\"useServo\":"+   String(USE_SERVO   ?"true":"false")+",";
-  flags += "\"useStepper\":"+String(USE_STEPPER?"true":"false")+",";
-  flags += "\"useMotorL298N\":"+String(USE_MOTOR_L298N?"true":"false")+",";
-  flags += "\"dht\":"+       String(USE_DHT      ?"true":"false")+",";
-  flags += "\"ldr\":"+       String(USE_LDR      ?"true":"false")+",";
-  flags += "\"gas\":"+       String(USE_GAS      ?"true":"false")+",";
-  flags += "\"line\":"+      String(USE_LINE     ?"true":"false")+",";
-  flags += "\"joystick\":"+  String(USE_JOYSTICK ?"true":"false")+",";
-  flags += "\"ultrasonic\":"+String(USE_ULTRASONIC?"true":"false");
+  flags += "\"useServo\":"      + String(USE_SERVO       ? "true" : "false") + ",";
+  flags += "\"useStepper\":"    + String(USE_STEPPER     ? "true" : "false") + ",";
+  flags += "\"useMotorL298N\":" + String(USE_MOTOR_L298N ? "true" : "false") + ",";
+  flags += "\"dht\":"           + String(USE_DHT         ? "true" : "false") + ",";
+  flags += "\"ldr\":"           + String(USE_LDR         ? "true" : "false") + ",";
+  flags += "\"gas\":"           + String(USE_GAS         ? "true" : "false") + ",";
+  flags += "\"line\":"          + String(USE_LINE        ? "true" : "false") + ",";
+  flags += "\"joystick\":"      + String(USE_JOYSTICK    ? "true" : "false") + ",";
+  flags += "\"ultrasonic\":"    + String(USE_ULTRASONIC  ? "true" : "false");
   flags += "}";
 
   String html = R"rawliteral(
@@ -184,15 +197,14 @@ if (F.useStepper) {
   <div class="section">
     <h3>Dong co buoc (28BYJ-48)</h3>
     <div class="row">
-      <button onclick="post('/stepper/forward')">Thuan</button>
-      <button class="rev" onclick="post('/stepper/reverse')">Nguoc</button>
-      <button class="stop" onclick="post('/stepper/stop')">Stop</button>
+      <input id="stepAngle" type="number" min="0" max="360" value="90"
+             placeholder="Goc (0-360)" style="width:150px"/>
+      <span style="font-size:.85rem;color:#aaa">do</span>
     </div>
     <div class="row">
-      <span style="font-size:.85rem;color:#aaa">Toc do (RPM):</span>
-      <input type="range" min="1" max="15" value="10" id="speedSlider"
-             oninput="updateSpeed(this.value)"/>
-      <span id="speedVal">10</span> RPM
+      <button onclick="stepperGo(1)">Thuan</button>
+      <button class="rev" onclick="stepperGo(-1)">Nguoc</button>
+      <button class="stop" onclick="post('/stepper/stop')">Stop</button>
     </div>
   </div>`;
 }
@@ -205,6 +217,12 @@ if (F.useMotorL298N) {
       <button onclick="post('/motor/forward')">Thuan</button>
       <button class="rev" onclick="post('/motor/reverse')">Nguoc</button>
       <button class="stop" onclick="post('/motor/stop')">Dung</button>
+    </div>
+    <div class="row">
+      <span style="font-size:.85rem;color:#aaa">Toc do:</span>
+      <input type="range" min="0" max="255" value="200" id="motorSpeed"
+             oninput="updateMotorSpeed(this.value)"/>
+      <span id="motorSpeedVal">200</span> / 255
     </div>
   </div>`;
 }
@@ -227,16 +245,28 @@ if (F.joystick)
 if (F.ultrasonic)
   sg.innerHTML += `<div class="scard"><div class="slabel">Sieu am</div><div class="sval"><span id="dist">--</span> cm</div></div>`;
 
-// ── Điều khiển ────────────────────────────────────────────────────────────
+// ── Điều khiển servo ──────────────────────────────────────────────────────
 function servoStart() {
   const v = parseInt(document.getElementById('servoInput').value);
   if (isNaN(v)||v<1||v>180){ msgEl.textContent='Nhap goc 1-180!'; return; }
   post('/servo/set?val='+v);
 }
 
-function updateSpeed(v) {
-  document.getElementById('speedVal').textContent = v;
-  post('/stepper/speed?val='+v);
+// ── Điều khiển stepper ────────────────────────────────────────────────────
+function stepperGo(dir) {
+  const v = parseInt(document.getElementById('stepAngle').value);
+  if (isNaN(v) || v < 0 || v > 360) {
+    msgEl.textContent = 'Nhap goc tu 0 den 360!';
+    return;
+  }
+  const url = (dir === 1 ? '/stepper/forward' : '/stepper/reverse') + '?val=' + v;
+  post(url);
+}
+
+// ── Điều khiển tốc độ motor ───────────────────────────────────────────────
+function updateMotorSpeed(v) {
+  document.getElementById('motorSpeedVal').textContent = v;
+  post('/motor/speed?val=' + v);
 }
 
 // ── Poll status ────────────────────────────────────────────────────────────
@@ -247,9 +277,9 @@ function update() {
     if(F.ldr)        set('ldrRaw', d.ldrRaw);
     if(F.gas)        set('gasRaw', d.gasRaw);
     if(F.line){
-      set('lineVal', d.line===1?'DETECT':'CLEAR');
+      set('lineVal', d.line===1?'CLEAR':'DETECT');
       const b=document.getElementById('lineBadge');
-      if(b){ b.textContent=d.line===1?'Phat hien':'Trong'; b.className='badge '+(d.line===1?'on':'off'); }
+      if(b){ b.textContent=d.line===1?'Khong phat hien':'Phat hien'; b.className='badge '+(d.line===1?'off':'on'); }
     }
     if(F.joystick){ set('joyVal','X:'+d.joyX+' Y:'+d.joyY); set('joySW',d.joySW===0?'Nhan':'Tha'); }
     if(F.ultrasonic) set('dist', d.dist<0?'--':d.dist);
@@ -268,12 +298,12 @@ update();
 void setup() {
   Serial.begin(115200);
 
-  if (USE_DHT)       dht.begin();
-  if (USE_LDR)       pinMode(LDR_PIN,  INPUT);
-  if (USE_GAS)       pinMode(GAS_PIN,  INPUT);
-  if (USE_LINE)      pinMode(LINE_PIN, INPUT);
-  if (USE_JOYSTICK)  { pinMode(JOY_X,INPUT); pinMode(JOY_Y,INPUT); pinMode(JOY_SW,INPUT_PULLUP); }
-  if (USE_ULTRASONIC){ pinMode(TRIG_PIN,OUTPUT); pinMode(ECHO_PIN,INPUT); }
+  if (USE_DHT)        dht.begin();
+  if (USE_LDR)        pinMode(LDR_PIN,  INPUT);
+  if (USE_GAS)        pinMode(GAS_PIN,  INPUT);
+  if (USE_LINE)       pinMode(LINE_PIN, INPUT);
+  if (USE_JOYSTICK)   { pinMode(JOY_X,INPUT); pinMode(JOY_Y,INPUT); pinMode(JOY_SW,INPUT_PULLUP); }
+  if (USE_ULTRASONIC) { pinMode(TRIG_PIN,OUTPUT); pinMode(ECHO_PIN,INPUT); }
   if (USE_MOTOR_L298N){ pinMode(MOTOR_ENA,OUTPUT); pinMode(MOTOR_IN1,OUTPUT); pinMode(MOTOR_IN2,OUTPUT); }
 
   if (USE_SERVO) {
@@ -289,7 +319,7 @@ void setup() {
   }
 
   if (USE_MOTOR_L298N) {
-    digitalWrite(MOTOR_ENA, LOW);
+    analogWrite(MOTOR_ENA, 0);
     digitalWrite(MOTOR_IN1, LOW);
     digitalWrite(MOTOR_IN2, LOW);
   }
@@ -315,12 +345,20 @@ void setup() {
 
   // Stepper routes
   server.on("/stepper/forward", []() {
-    stepperDir = 1; stepperRunning = true;
-    server.send(200,"text/plain","Stepper: quay thuan");
+    if (!USE_STEPPER) { server.send(404,"text/plain","Stepper disabled"); return; }
+    if (server.hasArg("val"))
+      stepperAngle = constrain(server.arg("val").toInt(), 0, 360);
+    stepperDir     = 1;
+    stepperRunning = true;
+    server.send(200,"text/plain","Stepper: quay thuan "+String(stepperAngle)+" do/chu ky");
   });
   server.on("/stepper/reverse", []() {
-    stepperDir = -1; stepperRunning = true;
-    server.send(200,"text/plain","Stepper: quay nguoc");
+    if (!USE_STEPPER) { server.send(404,"text/plain","Stepper disabled"); return; }
+    if (server.hasArg("val"))
+      stepperAngle = constrain(server.arg("val").toInt(), 0, 360);
+    stepperDir     = -1;
+    stepperRunning = true;
+    server.send(200,"text/plain","Stepper: quay nguoc "+String(stepperAngle)+" do/chu ky");
   });
   server.on("/stepper/stop", []() {
     stepperRunning = false;
@@ -337,48 +375,54 @@ void setup() {
   // L298N motor routes
   server.on("/motor/forward", []() {
     if (!USE_MOTOR_L298N) { server.send(404,"text/plain","Motor disabled"); return; }
-    digitalWrite(MOTOR_ENA, HIGH);
+    analogWrite(MOTOR_ENA, motorSpeed);
     digitalWrite(MOTOR_IN1, HIGH);
     digitalWrite(MOTOR_IN2, LOW);
-    server.send(200,"text/plain","Motor: quay thuan");
+    server.send(200,"text/plain","Motor: quay thuan (speed="+String(motorSpeed)+")");
   });
   server.on("/motor/reverse", []() {
     if (!USE_MOTOR_L298N) { server.send(404,"text/plain","Motor disabled"); return; }
-    digitalWrite(MOTOR_ENA, HIGH);
+    analogWrite(MOTOR_ENA, motorSpeed);
     digitalWrite(MOTOR_IN1, LOW);
     digitalWrite(MOTOR_IN2, HIGH);
-    server.send(200,"text/plain","Motor: quay nguoc");
+    server.send(200,"text/plain","Motor: quay nguoc (speed="+String(motorSpeed)+")");
   });
   server.on("/motor/stop", []() {
     if (!USE_MOTOR_L298N) { server.send(404,"text/plain","Motor disabled"); return; }
-    digitalWrite(MOTOR_ENA, LOW);
+    analogWrite(MOTOR_ENA, 0);
     digitalWrite(MOTOR_IN1, LOW);
     digitalWrite(MOTOR_IN2, LOW);
     server.send(200,"text/plain","Motor: dung");
+  });
+  server.on("/motor/speed", []() {
+    if (!USE_MOTOR_L298N) { server.send(404,"text/plain","Motor disabled"); return; }
+    if (server.hasArg("val"))
+      motorSpeed = constrain(server.arg("val").toInt(), 0, 255);
+    server.send(200,"text/plain","Toc do motor: "+String(motorSpeed)+"/255");
   });
 
   // Status
   server.on("/status", []() {
     String json = "{";
-    json += F("\"servoAngle\":");
+    json += "\"servoAngle\":";
     json += String(currentAngle);
     if (USE_DHT) {
       float t=dht.readTemperature(), h=dht.readHumidity();
-      json += F(",\"temp\":");
+      json += ",\"temp\":";
       json += (isnan(t) ? String("-1") : String(t,1));
-      json += F(",\"humi\":");
+      json += ",\"humi\":";
       json += (isnan(h) ? String("-1") : String(h,1));
     }
-    if (USE_LDR)  { json += F(",\"ldrRaw\":"); json += String(analogRead(LDR_PIN)); }
-    if (USE_GAS)  { json += F(",\"gasRaw\":"); json += String(analogRead(GAS_PIN)); }
-    if (USE_LINE) { json += F(",\"line\":");   json += String(digitalRead(LINE_PIN)); }
+    if (USE_LDR)  { json += ",\"ldrRaw\":"; json += String(analogRead(LDR_PIN)); }
+    if (USE_GAS)  { json += ",\"gasRaw\":"; json += String(analogRead(GAS_PIN)); }
+    if (USE_LINE) { json += ",\"line\":";   json += String(digitalRead(LINE_PIN)); }
     if (USE_JOYSTICK) {
-      json += F(",\"joyX\":");  json += String(analogRead(JOY_X));
-      json += F(",\"joyY\":");  json += String(analogRead(JOY_Y));
-      json += F(",\"joySW\":"); json += String(digitalRead(JOY_SW));
+      json += ",\"joyX\":";  json += String(analogRead(JOY_X));
+      json += ",\"joyY\":";  json += String(analogRead(JOY_Y));
+      json += ",\"joySW\":"; json += String(digitalRead(JOY_SW));
     }
     if (USE_ULTRASONIC) {
-      json += F(",\"dist\":");
+      json += ",\"dist\":";
       json += String(readUltrasonic(),1);
     }
     json += "}";

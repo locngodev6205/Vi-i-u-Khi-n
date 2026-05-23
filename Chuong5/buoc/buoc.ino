@@ -7,7 +7,6 @@ const int MY_ADDRESS         = 0x03;
 const int CMD_1              = 0x01;
 const int CMD_2              = 0x02;
 
-// Chân điều khiển stepper
 const int PIN_IN1 = 8;
 const int PIN_IN2 = 9;
 const int PIN_IN3 = 10;
@@ -18,18 +17,11 @@ Stepper myStepper(stepsPerRevolution, PIN_IN1, PIN_IN3, PIN_IN2, PIN_IN4);
 unsigned long lastReceiveTime = 0;
 const unsigned long TIMEOUT   = 600;
 
-// Trạng thái hiện tại của motor
-int  currentCommand = 0;      // 0 = dừng, 1 = ngược, 2 = thuận
-bool motorRunning   = false;
-
-// Tắt hoàn toàn cuộn dây stepper để tránh nóng và tiết kiệm điện
-void stopMotor() {
+void releaseStepper() {
     digitalWrite(PIN_IN1, LOW);
     digitalWrite(PIN_IN2, LOW);
     digitalWrite(PIN_IN3, LOW);
     digitalWrite(PIN_IN4, LOW);
-    motorRunning   = false;
-    currentCommand = 0;
 }
 
 void setup() {
@@ -39,46 +31,43 @@ void setup() {
     pinMode(PIN_IN2, OUTPUT);
     pinMode(PIN_IN3, OUTPUT);
     pinMode(PIN_IN4, OUTPUT);
+    releaseStepper();
     lastReceiveTime = millis();
+    Serial.println("--- IR STEPPER READY ---");
 }
 
 void loop() {
-    // --- Nhận tín hiệu IR ---
     if (IrReceiver.decode()) {
-        if (IrReceiver.decodedIRData.address == MY_ADDRESS) {
-            if (IrReceiver.decodedIRData.command == CMD_1) {
-                currentCommand  = 1;
-                motorRunning    = true;
-                lastReceiveTime = millis();
-                myStepper.setSpeed(15);
-                Serial.println("Quay nguoc");
-            }
-            else if (IrReceiver.decodedIRData.command == CMD_2) {
-                currentCommand  = 2;
-                motorRunning    = true;
-                lastReceiveTime = millis();
+        uint16_t address = IrReceiver.decodedIRData.address;
+        uint16_t command = IrReceiver.decodedIRData.command;
+
+        Serial.print("ADDR: 0x"); Serial.print(address, HEX);
+        Serial.print(" | CMD: 0x"); Serial.println(command, HEX);
+
+        if (address == MY_ADDRESS) {
+            if (command == CMD_1) {
                 myStepper.setSpeed(5);
-                Serial.println("Quay thuan");
+                myStepper.step(-(stepsPerRevolution / 8)); // Quay ngược 45 độ
+                Serial.println("-> Quay nguoc 45 do");
+                lastReceiveTime = millis();
+                delay(200); 
             }
+            else if (command == CMD_2) {
+                myStepper.setSpeed(15);
+                myStepper.step(stepsPerRevolution / 4);    // Quay thuận 90 độ
+                Serial.println("-> Quay thuan 90 do");
+                lastReceiveTime = millis();
+                delay(200); 
+            }
+        } else {
+            Serial.println("Canh bao: Sai dia chi!");
         }
+
         IrReceiver.resume();
     }
 
-    // --- Timeout: mất tín hiệu quá 0.6s thì dừng hẳn ---
+    // Timeout: mất tín hiệu quá 0.6s thì nhả cuộn dây
     if (millis() - lastReceiveTime > TIMEOUT) {
-        if (motorRunning) {
-            stopMotor();
-            Serial.println("Khong nhan tin hieu - Dung motor");
-        }
-        return; // Không chạy tiếp phần bên dưới
-    }
-
-    // --- Quay motor liên tục khi đang nhận tín hiệu ---
-    if (motorRunning) {
-        if (currentCommand == 1) {
-            myStepper.step(-1);
-        } else if (currentCommand == 2) {
-            myStepper.step(1);
-        }
+        releaseStepper();
     }
 }
