@@ -12,19 +12,22 @@ const int JOYSTICK_X = A1;
 const int JOYSTICK_Y = A2;
 const int JOYSTICK_Z = 2;
 
-bool joystick(int thresholdX = 550, int thresholdY = 550) {
-    int x = analogRead(JOYSTICK_X);
-    int y = analogRead(JOYSTICK_Y);
-    int z = digitalRead(JOYSTICK_Z);
+int threshold1 = 600;
+int threshold2 = 400;
 
-    Serial.println("JOYSTICK " + String(x) + ", " + String(y) + ", " + String(z));
-
-    if (x >= thresholdX || y >= thresholdY || z == LOW) {
-        return true;
-    } else {
-        return false;
-    }
-}
+//bool joystick(int threshold1 = 600, int threshold2 = 400) {
+//    int x = analogRead(JOYSTICK_X);
+//    int y = analogRead(JOYSTICK_Y);
+//    int z = digitalRead(JOYSTICK_Z);
+//
+//    Serial.println("JOYSTICK " + String(x) + ", " + String(y) + ", " + String(z));
+//
+//    if (x >= threshold1) {
+//        return true;
+//    } else if (x <= threshold2) {
+//        return false;
+//    }
+//}
 
 void setup() {
     Serial.begin(9600);
@@ -34,13 +37,24 @@ void setup() {
 }
 
 void loop() {
-    if (joystick()) {  // Joystick kích hoạt → gửi CMD_1
+    int x = analogRead(JOYSTICK_X);
+    int y = analogRead(JOYSTICK_Y);
+    int z = digitalRead(JOYSTICK_Z);
+    Serial.println("JOYSTICK " + String(x) + ", " + String(y) + ", " + String(z));
+    if (x >= threshold1) {
         IrSender.sendRC5(MY_ADDRESS, CMD_1, 0, true);
-        Serial.println("-> Joystick kich hoat");
-    } else {           // Nghỉ → gửi CMD_2
+        Serial.println("-> Joystick kich hoat 1");
+    } else if (x <= threshold2) {
         IrSender.sendRC5(MY_ADDRESS, CMD_2, 0, true);
-        Serial.println("-> Joystick nghi");
+        Serial.println("-> Joystick kich hoat 2");
     }
+//    if (joystick()) {  // Joystick kích hoạt → gửi CMD_1
+//        IrSender.sendRC5(MY_ADDRESS, CMD_1, 0, true);
+//        Serial.println("-> Joystick kich hoat");
+//    } else {           // Nghỉ → gửi CMD_2
+//        IrSender.sendRC5(MY_ADDRESS, CMD_2, 0, true);
+//        Serial.println("-> Joystick nghi");
+//    }
 
     delay(500);
 }

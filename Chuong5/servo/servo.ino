@@ -7,7 +7,7 @@ const int IR_RECEIVE_PIN = 2;
 
 // TIMEOUT
 unsigned long lastReceiveTime = 0;  
-const unsigned long TIMEOUT_MS = 500; 
+const unsigned long TIMEOUT_MS = 600; 
 
 const int MY_ADDRESS = 0x03;
 const int CMD_1      = 0x01;  // Servo quay 1-50 độ
@@ -31,22 +31,23 @@ void loop() {
     Serial.println(receivedCommand, HEX);
 
     if (receivedAddress == MY_ADDRESS) {
-      lastReceiveTime = millis(); 
+      
       if (receivedCommand == CMD_1) {
+        
+        myServo.write(45);
+        delay(500);
+        myServo.write(0);
+        delay(500);
+        lastReceiveTime = millis(); 
+        
+      } 
+      else if (receivedCommand == CMD_2) {
+        
         myServo.write(90);
         delay(500);
         myServo.write(0);
         delay(500);
-
-        
-      } 
-      else if (receivedCommand == CMD_2) {
         lastReceiveTime = millis();
-        myServo.write(120);
-        delay(500);
-        myServo.write(0);
-        delay(500);
-
          
       }
       else  {
@@ -56,8 +57,6 @@ void loop() {
       }
 
       
-    } else {
-      Serial.println("Canh bao: Sai dia chi!");
     }
 
     IrReceiver.resume(); 
